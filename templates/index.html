@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NER Studio — Named Entity Recognition</title>
+  <meta name="description" content="AI-powered Named Entity Recognition Studio. Detect people, organizations, locations, dates, and more with a custom-trained spaCy model.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ─── Design tokens ────────────────────────────────────────────────── */
+    :root {
+      --bg-deep:    #090d18;
+      --bg-mid:     #0f1626;
+      --bg-card:    rgba(16, 24, 48, 0.72);
+      --border:     rgba(99, 120, 200, 0.18);
+      --border-hi:  rgba(120, 150, 255, 0.35);
+      --text-hd:    #e8eeff;
+      --text-body:  #a8b4d8;
+      --text-muted: #5e6e96;
+      --accent:     #5b77ff;
+      --accent-lo:  rgba(91, 119, 255, 0.14);
+      --accent-hi:  #7b93ff;
+      --success:    #22d3a3;
+      --success-lo: rgba(34, 211, 163, 0.12);
+      --danger:     #ff5e7e;
+      --danger-lo:  rgba(255, 94, 126, 0.12);
+      --warning:    #ffb547;
+      --radius-lg:  18px;
+      --radius-md:  12px;
+      --radius-sm:  8px;
+      --shadow:     0 24px 64px rgba(0,0,0,0.55);
+      --glow:       0 0 40px rgba(91,119,255,0.12);
+    }
+
+    /* ─── Entity colours ───────────────────────────────────────────────── */
+    :root {
+      --c-PERSON:     #a78bfa; --cb-PERSON:     rgba(167,139,250,0.15);
+      --c-ORG:        #60a5fa; --cb-ORG:        rgba(96,165,250,0.15);
+      --c-GPE:        #34d399; --cb-GPE:        rgba(52,211,153,0.15);
+      --c-LOC:        #4ade80; --cb-LOC:        rgba(74,222,128,0.15);
+      --c-DATE:       #fbbf24; --cb-DATE:       rgba(251,191,36,0.15);
+      --c-TIME:       #f59e0b; --cb-TIME:       rgba(245,158,11,0.15);
+      --c-MONEY:      #22d3ee; --cb-MONEY:      rgba(34,211,238,0.15);
+      --c-PERCENT:    #06b6d4; --cb-PERCENT:    rgba(6,182,212,0.15);
+      --c-ORG:        #60a5fa; --cb-ORG:        rgba(96,165,250,0.15);
+      --c-NORP:       #fb923c; --cb-NORP:       rgba(251,146,60,0.15);
+      --c-FAC:        #e879f9; --cb-FAC:        rgba(232,121,249,0.15);
+      --c-EVENT:      #f43f5e; --cb-EVENT:      rgba(244,63,94,0.15);
+      --c-PRODUCT:    #38bdf8; --cb-PRODUCT:    rgba(56,189,248,0.15);
+      --c-WORK_OF_ART:#c084fc; --cb-WORK_OF_ART:rgba(192,132,252,0.15);
+      --c-LANGUAGE:   #a3e635; --cb-LANGUAGE:   rgba(163,230,53,0.15);
+      --c-LAW:        #fb7185; --cb-LAW:        rgba(251,113,133,0.15);
+      --c-QUANTITY:   #2dd4bf; --cb-QUANTITY:   rgba(45,212,191,0.15);
+      --c-ORDINAL:    #a78bfa; --cb-ORDINAL:    rgba(167,139,250,0.15);
+      --c-CARDINAL:   #94a3b8; --cb-CARDINAL:   rgba(148,163,184,0.15);
+    }
+
+    /* ─── Reset & base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      min-height: 100vh;
+      font-family: "Inter", system-ui, sans-serif;
+      font-size: 15px;
+      color: var(--text-body);
+      background: var(--bg-deep);
+      background-image:
+        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(91,119,255,0.18) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(34,211,163,0.10) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 60% at 90% 5%,  rgba(167,139,250,0.10) 0%, transparent 45%);
+      padding: 28px 16px 56px;
+    }
+
+    /* ─── Layout ───────────────────────────────────────────────────────── */
+    .page {
+      max-width: 1140px;
+      margin: 0 auto;
+      display: grid;
+      gap: 20px;
+      animation: pageEnter 480ms cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    @keyframes pageEnter {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── Glass card ───────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      box-shadow: var(--shadow), var(--glow);
+      overflow: hidden;
+    }
+
+    /* ─── Hero ─────────────────────────────────────────────────────────── */
+    .hero {
+      padding: 32px 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+      position: relative;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(91,119,255,0.07) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .hero-title {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .hero-icon {
+      width: 46px; height: 46px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #5b77ff, #a78bfa);
+      display: grid; place-items: center;
+      font-size: 22px;
+      flex-shrink: 0;
+      box-shadow: 0 8px 24px rgba(91,119,255,0.4);
+    }
+
+    h1 {
+      font-size: clamp(1.45rem, 3vw, 2.1rem);
+      font-weight: 700;
+      color: var(--text-hd);
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+    }
+
+    h1 span { color: var(--accent-hi); }
+
+    .hero-sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-weight: 400;
+    }
+
+    .model-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 15px;
+      border-radius: 999px;
+      background: var(--accent-lo);
+      border: 1px solid rgba(91,119,255,0.3);
+      color: var(--accent-hi);
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+
+    .model-badge::before {
+      content: "";
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #22d3a3;
+      box-shadow: 0 0 8px rgba(34,211,163,0.7);
+      animation: pulse 2s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.6; transform: scale(0.85); }
+    }
+
+    /* ─── Sections inside a card ───────────────────────────────────────── */
+    .section {
+      padding: 24px 28px;
+    }
+
+    .section + .section {
+      border-top: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    /* ─── Form ──────────────────────────────────────────────────────────── */
+    .input-label {
+      display: block;
+      font-size: 0.86rem;
+      font-weight: 500;
+      color: var(--text-body);
+      margin-bottom: 8px;
+    }
+
+    textarea, input[type="file"], select.label-select {
+      width: 100%;
+      background: rgba(8, 12, 28, 0.6);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-hd);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    textarea {
+      padding: 14px 16px;
+      min-height: 180px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    textarea::placeholder { color: var(--text-muted); }
+
+    textarea:focus, input[type="file"]:focus, select.label-select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(91,119,255,0.18);
+    }
+
+    input[type="file"] {
+      padding: 10px 14px;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: end;
+    }
+
+    .char-counter {
+      font-family: "Space Mono", monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      padding-bottom: 10px;
+    }
+
+    .char-counter span { color: var(--accent-hi); }
+
+    /* ─── Buttons ───────────────────────────────────────────────────────── */
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    button {
+      border: none;
+      padding: 11px 20px;
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
+      white-space: nowrap;
+    }
+
+    button:hover { transform: translateY(-2px); }
+    button:active { transform: translateY(0); opacity: 0.85; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #5b77ff 0%, #7b52ee 100%);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(91,119,255,0.35);
+    }
+
+    .btn-primary:hover { box-shadow: 0 12px 32px rgba(91,119,255,0.5); }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-body);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover { background: rgba(255,255,255,0.09); }
+
+    .btn-success {
+      background: linear-gradient(135deg, #059669 0%, #22d3a3 100%);
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(34,211,163,0.25);
+    }
+
+    /* ─── Alerts ────────────────────────────────────────────────────────── */
+    .alert {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid;
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+
+    .alert-error {
+      background: var(--danger-lo);
+      border-color: rgba(255,94,126,0.3);
+      color: #fca5a5;
+    }
+
+    .alert-notice {
+      background: var(--success-lo);
+      border-color: rgba(34,211,163,0.3);
+      color: #6ee7b7;
+    }
+
+    /* ─── Stat cards ────────────────────────────────────────────────────── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .stat-card {
+      background: rgba(8,12,28,0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+      transition: border-color 200ms ease, transform 200ms ease;
+    }
+
+    .stat-card:hover { border-color: var(--border-hi); transform: translateY(-2px); }
+
+    .stat-label {
+      font-size: 0.76rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-family: "Space Mono", monospace;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text-hd);
+      line-height: 1;
+    }
+
+    /* ─── Label chips ───────────────────────────────────────────────────── */
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+      letter-spacing: 0.02em;
+    }
+
+    .chip-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ─── Entity rendering ──────────────────────────────────────────────── */
+    .entity-view {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      background: rgba(8,12,28,0.55);
+      border: 1px solid var(--border);
+      line-height: 1.8;
+      font-size: 1rem;
+      color: var(--text-body);
+      overflow-x: auto;
+    }
+
+    /* Override displacy marks for dark theme */
+    .entity-view mark.entity {
+      border-radius: 5px;
+      padding: 2px 6px;
+      font-weight: 600;
+      font-size: 0.92em;
+    }
+
+    /* ─── Table ─────────────────────────────────────────────────────────── */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 600px;
+      font-size: 0.9rem;
+    }
+
+    thead tr {
+      background: rgba(8,12,28,0.7);
+    }
+
+    th {
+      padding: 11px 14px;
+      text-align: left;
+      font-size: 0.73rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(99,120,200,0.09);
+      vertical-align: middle;
+      color: var(--text-body);
+    }
+
+    tbody tr {
+      transition: background 140ms ease;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(91,119,255,0.05); }
+
+    select.label-select {
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      background: rgba(8,12,28,0.8);
+      color: var(--text-hd);
+    }
+
+    select.label-select option { background: #0f1626; }
+
+    /* ─── Entity type color system ──────────────────────────────────────── */
+    .ent-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    /* displacy marks inherit bg automatically; let's style source badges */
+    .source-model  { color: #60a5fa; font-size: 0.78rem; font-weight: 600; }
+    .source-rule   { color: #fbbf24; font-size: 0.78rem; font-weight: 600; }
+    .source-backup { color: #94a3b8; font-size: 0.78rem; font-weight: 600; }
+    .source-human  { color: #22d3a3; font-size: 0.78rem; font-weight: 600; }
+
+    /* ─── Info box ──────────────────────────────────────────────────────── */
+    .info-box {
+      background: rgba(8,12,28,0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+    }
+
+    .info-box pre {
+      font-family: "Space Mono", monospace;
+      font-size: 0.8rem;
+      color: var(--text-body);
+      white-space: pre-wrap;
+      line-height: 1.7;
+      margin-top: 8px;
+    }
+
+    /* ─── Divider ───────────────────────────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    /* ─── Text preview ──────────────────────────────────────────────────── */
+    .text-preview {
+      background: rgba(8,12,28,0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      white-space: pre-wrap;
+      font-size: 0.92rem;
+      line-height: 1.7;
+      max-height: 200px;
+      overflow: auto;
+      color: var(--text-body);
+    }
+
+    /* ─── Scrollbar ─────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(91,119,255,0.3); border-radius: 99px; }
+
+    /* ─── Responsive ────────────────────────────────────────────────────── */
+    @media (max-width: 680px) {
+      body { padding: 18px 12px 40px; }
+      .hero { padding: 22px 20px; }
+      .section { padding: 18px 20px; }
+      .form-row { grid-template-columns: 1fr; }
+      .char-counter { padding-bottom: 0; }
+    }
+
+    /* ─── displacy dark override ────────────────────────────────────────── */
+    div[data-displacy] { background: transparent !important; }
+    span[data-entity] {
+      border-radius: 5px !important;
+      font-size: 0.92em !important;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+
+    <!-- ── Hero ── -->
+    <section class="card hero">
+      <div class="hero-title">
+        <div class="hero-icon">🧠</div>
+        <div>
+          <h1><span>NER</span> Studio</h1>
+          <p class="hero-sub">Named Entity Recognition · Powered by spaCy</p>
+        </div>
+      </div>
+      <div class="model-badge">{{ model_status }}</div>
+    </section>
+
+    <!-- ── Input card ── -->
+    <section class="card">
+      <div class="section">
+        <p class="section-title">Analyze Text</p>
+        <form id="analyzeForm" action="/entity" method="post" enctype="multipart/form-data">
+          <label class="input-label" for="text">Paste text or type below</label>
+          <textarea id="text" name="text" placeholder="e.g. Sundar Pichai announced in California that Google will invest $2 billion in AI by 2027.">{{ text or '' }}</textarea>
+
+          <div class="form-row" style="margin-top:14px">
+            <div>
+              <label class="input-label" for="file">Or upload a <code>.txt</code> file</label>
+              <input type="file" id="file" name="file" accept=".txt,text/plain">
+            </div>
+            <div class="char-counter" id="charCount">
+              <span id="charNum">0</span> chars &nbsp;·&nbsp; <span id="wordNum">0</span> words
+            </div>
+          </div>
+
+          {% if error %}
+            <div class="alert alert-error">{{ error }}</div>
+          {% endif %}
+          {% if notice %}
+            <div class="alert alert-notice">{{ notice }}</div>
+          {% endif %}
+
+          <div class="actions" style="margin-top:16px">
+            <button id="analyzeBtn" class="btn-primary" type="submit">⚡ Analyze Entities</button>
+            <button class="btn-ghost" type="button" id="sampleBtn">Use Sample Text</button>
+            <button class="btn-ghost" type="button" id="clearBtn">Clear</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ── Stats row ── -->
+      <hr class="divider">
+      <div class="section">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Entities Found</div>
+            <div class="stat-value">{{ entity_total or 0 }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Unique Labels</div>
+            <div class="stat-value">{{ label_counts|length if label_counts else 0 }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Input Length</div>
+            <div class="stat-value">{{ (text or '')|length }}</div>
+          </div>
+        </div>
+
+        {% if label_counts %}
+          <div class="chip-row" id="labelChips">
+            {% for label, count in label_counts.items() %}
+              <span class="chip" data-label="{{ label }}"
+                    style="background:var(--cb-{{ label }}, rgba(91,119,255,0.12));
+                           border-color:var(--c-{{ label }}, var(--accent));
+                           color:var(--c-{{ label }}, var(--accent-hi));">
+                <span class="chip-dot" style="background:var(--c-{{ label }}, var(--accent));"></span>
+                {{ label }}: {{ count }}
+              </span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- ── Results ── -->
+    {% if html %}
+    <section class="card">
+      <div class="section">
+        <p class="section-title">Original Text</p>
+        <div class="text-preview">{{ text }}</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="section">
+        <p class="section-title">Detected Entities</p>
+        <div class="entity-view" id="entityView">{{ html|safe }}</div>
+      </div>
+
+      {% if entities %}
+      <hr class="divider">
+      <div class="section">
+        <p class="section-title">Entity Breakdown & Corrections</p>
+        <form action="/save-feedback" method="post">
+          <textarea name="text" hidden>{{ text }}</textarea>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Entity Text</th>
+                  <th>Label (editable)</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ent in entities %}
+                <tr>
+                  <td style="color:var(--text-muted);font-family:'Space Mono',monospace;font-size:0.8rem">{{ ent.id }}</td>
+                  <td style="font-weight:600;color:var(--text-hd)">
+                    {{ ent.text }}
+                    <input type="hidden" name="entity_start" value="{{ ent.start }}">
+                    <input type="hidden" name="entity_end"   value="{{ ent.end }}">
+                  </td>
+                  <td>
+                    <select class="label-select" name="entity_label">
+                      {% for option in label_options %}
+                        <option value="{{ option }}" {% if option == ent.label %}selected{% endif %}>{{ option }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td style="font-family:'Space Mono',monospace;font-size:0.82rem;color:var(--text-muted)">{{ ent.start }}</td>
+                  <td style="font-family:'Space Mono',monospace;font-size:0.82rem;color:var(--text-muted)">{{ ent.end }}</td>
+                  <td>
+                    {% if ent.source == 'model' %}
+                      <span class="source-model">model</span>
+                    {% elif ent.source == 'rule' %}
+                      <span class="source-rule">rule</span>
+                    {% elif ent.source == 'backup' or ent.source == 'backup_raw' %}
+                      <span class="source-backup">backup</span>
+                    {% elif ent.source == 'human' %}
+                      <span class="source-human">human</span>
+                    {% else %}
+                      <span>{{ ent.source }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="actions" style="margin-top:14px">
+            <button class="btn-success" type="submit">💾 Save Corrections for Training</button>
+            <span style="font-size:0.85rem;color:var(--text-muted);align-self:center">
+              Fixes are appended to <code>data/ner_feedback.jsonl</code> and improve future training runs.
+            </span>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <!-- ── Training guide ── -->
+    <section class="card">
+      <div class="section">
+        <p class="section-title">Retrain to Improve Accuracy</p>
+        <div class="info-box">
+          <pre># 1. Generate synthetic training data (one-time)
+python generate_synthetic.py --n 5000
+
+# 2. Train with all sources (CSV + synthetic + feedback)
+python train_ner.py \
+    --synthetic data/synthetic_ner.jsonl \
+    --max-sentences 50000 --iterations 20
+
+# 3. Restart the app — it auto-loads models/ner_custom
+python run.py</pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    /* ── Character / word counter ── */
+    const textarea = document.getElementById("text");
+    const charNum  = document.getElementById("charNum");
+    const wordNum  = document.getElementById("wordNum");
+
+    function updateCounter() {
+      const v = textarea.value;
+      charNum.textContent = v.length;
+      wordNum.textContent = v.trim() ? v.trim().split(/\s+/).length : 0;
+    }
+
+    textarea.addEventListener("input", updateCounter);
+    updateCounter();
+
+    /* ── Sample texts ── */
+    const samples = [
+      "Sundar Pichai announced in California that Google will invest $2 billion in AI research across Europe, India, and Japan by 2027. The initiative, led by Priya Sharma from IIT Bombay, was unveiled at the annual summit on 15 March.",
+      "On August 12, 2025, Elon Musk revealed Tesla's plan to build a new Gigafactory in Berlin, Germany. The project is expected to create over 10,000 jobs and requires an initial funding of 4 billion euros. Engineers like Maria Anderson have already relocated from Texas.",
+      "According to the World Bank report released in Q3 2024, the GDP of Singapore grew by 4.5%. Microsoft and Apple expanded their regional hubs there, recruiting from local universities. Dr. Yamamoto praised the government's forward-looking policies.",
+      "The latest iPhone 16 Pro, engineered by Apple, has seen a 12% jump in sales across the Middle East. At the launch event in Dubai at 9 AM yesterday, CEO Tim Cook demonstrated its new features derived from GenAI. Revenues are forecasted to hit $50 million next quarter.",
+      "Harry Potter author J.K. Rowling established a new charitable foundation in London, United Kingdom. Endowed with 15 million dollars, it will focus on literacy programs for children. French and German scholars, including Prof. Pierre Dupont, warmly supported the announcement."
+    ];
+    let sampleIndex = 0;
+
+    document.getElementById("sampleBtn").addEventListener("click", () => {
+      textarea.value = samples[sampleIndex];
+      sampleIndex = (sampleIndex + 1) % samples.length;
+      updateCounter();
+      textarea.focus();
+    });
+
+    /* ── Clear ── */
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      textarea.value = "";
+      document.getElementById("file").value = "";
+      updateCounter();
+      textarea.focus();
+    });
+
+    /* ── Loading state on form submit ── */
+    document.getElementById("analyzeForm").addEventListener("submit", () => {
+      const btn = document.getElementById("analyzeBtn");
+      btn.textContent = "Analyzing…";
+      btn.disabled = true;
+    });
+
+    /* ── Style displacy output for dark theme ── */
+    (function styleDiplomacy() {
+      const view = document.getElementById("entityView");
+      if (!view) return;
+
+      const colorMap = {
+        PERSON:"#a78bfa", ORG:"#60a5fa", GPE:"#34d399", LOC:"#4ade80",
+        DATE:"#fbbf24",   TIME:"#f59e0b", MONEY:"#22d3ee", PERCENT:"#06b6d4",
+        NORP:"#fb923c",   FAC:"#e879f9",  EVENT:"#f43f5e", PRODUCT:"#38bdf8",
+        WORK_OF_ART:"#c084fc", LANGUAGE:"#a3e635", LAW:"#fb7185",
+        QUANTITY:"#2dd4bf", ORDINAL:"#a78bfa", CARDINAL:"#94a3b8",
+      };
+
+      view.querySelectorAll("mark").forEach(mark => {
+        const raw = mark.textContent || "";
+        let label = "";
+        // displacy wraps label in a <span> with class
+        const spans = mark.querySelectorAll("span");
+        if (spans.length) {
+          label = spans[spans.length - 1].textContent.trim();
+        }
+        const col = colorMap[label] || "#5b77ff";
+        const alpha = "28";
+        mark.style.background = col + alpha;
+        mark.style.color = col;
+        mark.style.borderRadius = "5px";
+        mark.style.padding = "2px 6px";
+        mark.style.fontWeight = "600";
+        if (spans.length) {
+          spans[spans.length - 1].style.background = col + "30";
+          spans[spans.length - 1].style.color = col;
+          spans[spans.length - 1].style.borderRadius = "3px";
+          spans[spans.length - 1].style.fontSize = "0.72em";
+          spans[spans.length - 1].style.padding = "1px 5px";
+          spans[spans.length - 1].style.fontWeight = "700";
+          spans[spans.length - 1].style.marginLeft = "5px";
+          spans[spans.length - 1].style.letterSpacing = "0.05em";
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
